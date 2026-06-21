@@ -63,16 +63,25 @@ async fn handle_webhook(
 ) -> impl IntoResponse {
     let mut name = String::new();
     let mut email = String::new();
+    let mut attributes = HashMap::new();
 
     for field in payload.fields {
-        if field.name == "Name" {
-            if let Some(v) = field.value.as_str() {
-                name = v.to_string();
-            }
-        } else if field.name == "Email" {
-            if let Some(v) = field.value.as_str() {
-                email = v.to_string();
-            }
+        let field_val = match field.value {
+            serde_json::Value::String(s) => s,
+            serde_json::Value::Number(n) => n.to_string(),
+            serde_json::Value::Bool(b) => b.to_string(),
+            _ => continue, // Ignore complex objects for now
+        };
+
+        if field.name.eq_ignore_ascii_case("name") {
+            name = field_val.clone();
+        } else if field.name.eq_ignore_ascii_case("email") {
+            email = field_val.clone();
+        }
+
+        // Brevo requires attribute names to be UPPERCASE
+        if !field.name.eq_ignore_ascii_case("email") {
+            attributes.insert(field.name.to_uppercase(), field_val);
         }
     }
 
@@ -93,8 +102,6 @@ async fn handle_webhook(
 
     println!("Generated Referral Code for {} ({}): {}", name, email, referral_code);
 
-    let mut attributes = HashMap::new();
-    attributes.insert("NAME".to_string(), name);
     attributes.insert("REFERRAL_CODE".to_string(), referral_code);
 
     let brevo_req = BrevoRequest {
