@@ -51,8 +51,8 @@ async fn main() {
         .route("/webhook", post(handle_webhook))
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    println!("Listening on port 3000");
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3050").await.unwrap();
+    println!("Listening on port 3050");
     axum::serve(listener, app).await.unwrap();
 }
 

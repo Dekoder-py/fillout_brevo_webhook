@@ -37,13 +37,13 @@ Before running the application, make sure your Brevo account is ready:
    ```bash
    cargo run
    ```
-   The server will start listening on `0.0.0.0:3000`.
+   The server will start listening on `0.0.0.0:3050`.
 
 ### 3. Exposing to the Internet (for Local Testing)
 Webhooks require a public URL to receive data. If you are testing locally, you can use [ngrok](https://ngrok.com/) to expose your local port:
 
 ```bash
-ngrok http 3000
+ngrok http 3050
 ```
 Copy the generated Forwarding URL (e.g., `https://abc-123.ngrok-free.app`).
 
