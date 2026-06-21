@@ -18,6 +18,7 @@ struct AppState {
 
 #[derive(Debug, Deserialize)]
 struct FilloutPayload {
+    #[serde(alias = "questions")]
     fields: Vec<FilloutField>,
 }
 
