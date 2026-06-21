@@ -171,7 +171,7 @@ async fn handle_webhook(
     attributes.insert("REFERRAL_CODE".to_string(), referral_code);
 
     let brevo_req = BrevoRequest {
-        email,
+        email: email.clone(),
         attributes,
         list_ids: state.brevo_list_id.map(|id| vec![id]),
         update_enabled: true, // Allow updating existing contacts
@@ -186,11 +186,13 @@ async fn handle_webhook(
 
     match res {
         Ok(response) => {
-            if response.status().is_success() {
+            let status = response.status();
+            if status.is_success() {
+                println!("Successfully saved to Brevo! Contact: {}", email);
                 (StatusCode::OK, "Saved to Brevo").into_response()
             } else {
                 let err_text = response.text().await.unwrap_or_default();
-                eprintln!("Brevo error: {}", err_text);
+                eprintln!("Brevo error ({}): {}", status, err_text);
                 (StatusCode::INTERNAL_SERVER_ERROR, "Failed to save to Brevo").into_response()
             }
         }
