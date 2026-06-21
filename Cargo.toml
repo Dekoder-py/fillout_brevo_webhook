@@ -1,0 +1,13 @@
+[package]
+name = "fillout_brevo_webhook"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = { version = "0.8.9", features = ["macros"] }
+dotenvy = "0.15.7"
+rand = "0.10.1"
+reqwest = { version = "0.13.4", features = ["json"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+tokio = { version = "1.52.3", features = ["full"] }
