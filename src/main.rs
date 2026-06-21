@@ -54,8 +54,9 @@ async fn handle_webhook(
 ) -> impl IntoResponse {
     println!("Received webhook payload:\n{}", serde_json::to_string_pretty(&raw_payload).unwrap_or_default());
 
-    // Try to find the fields/questions array, even if it's nested under "data"
-    let fields_array = raw_payload.get("data").and_then(|d| d.get("fields").or(d.get("questions")))
+    // Try to find the fields/questions array, even if it's nested under "data" or "submission"
+    let fields_array = raw_payload.get("submission").and_then(|s| s.get("questions").or(s.get("fields")))
+        .or_else(|| raw_payload.get("data").and_then(|d| d.get("fields").or(d.get("questions"))))
         .or_else(|| raw_payload.get("fields").or(raw_payload.get("questions")))
         .and_then(|v| v.as_array());
 
@@ -92,7 +93,8 @@ async fn handle_webhook(
     }
 
     if email.is_empty() {
-        return (StatusCode::BAD_REQUEST, "Email is required").into_response();
+        eprintln!("Email is empty (likely a test payload), skipping Brevo sync.");
+        return (StatusCode::OK, "Skipped: Email is required").into_response();
     }
 
     // Generate referral code: first 3 letters of Name + 4 random numbers
