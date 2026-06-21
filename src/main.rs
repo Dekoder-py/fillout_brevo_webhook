@@ -13,6 +13,7 @@ use reqwest::Client;
 #[derive(Clone)]
 struct AppState {
     brevo_api_key: String,
+    brevo_list_id: Option<u32>,
     http_client: Client,
 }
 
@@ -22,6 +23,11 @@ struct AppState {
 struct BrevoRequest {
     email: String,
     attributes: HashMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "listIds")]
+    list_ids: Option<Vec<u32>>,
+    #[serde(rename = "updateEnabled")]
+    update_enabled: bool,
 }
 
 #[tokio::main]
@@ -32,9 +38,14 @@ async fn main() {
         println!("Warning: BREVO_API_KEY not set in environment");
         "".to_string()
     });
+
+    let brevo_list_id = std::env::var("BREVO_LIST_ID")
+        .ok()
+        .and_then(|v| v.parse::<u32>().ok());
     
     let state = AppState {
         brevo_api_key,
+        brevo_list_id,
         http_client: Client::new(),
     };
 
@@ -115,6 +126,8 @@ async fn handle_webhook(
     let brevo_req = BrevoRequest {
         email,
         attributes,
+        list_ids: state.brevo_list_id.map(|id| vec![id]),
+        update_enabled: true, // Allow updating existing contacts
     };
 
     let res = state.http_client.post("https://api.brevo.com/v3/contacts")
