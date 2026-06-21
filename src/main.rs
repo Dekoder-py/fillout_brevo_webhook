@@ -98,36 +98,56 @@ async fn handle_webhook(
         .or_else(|| raw_payload.get("fields").or(raw_payload.get("questions")))
         .and_then(|v| v.as_array());
 
-    let Some(fields) = fields_array else {
-        eprintln!("Could not find 'fields' or 'questions' array in payload");
-        return (StatusCode::OK, "Payload ignored: no fields array").into_response(); // Return 200 so Fillout doesn't retry infinitely on weird events
-    };
-
     let mut name = String::new();
     let mut email = String::new();
     let mut attributes = HashMap::new();
 
-    for field in fields {
-        let field_name = field.get("name").and_then(|n| n.as_str()).unwrap_or("");
-        let field_value = field.get("value").unwrap_or(&serde_json::Value::Null);
+    if let Some(fields) = fields_array {
+        // Parse standard array payload
+        for field in fields {
+            let field_name = field.get("name").and_then(|n| n.as_str()).unwrap_or("");
+            let field_value = field.get("value").unwrap_or(&serde_json::Value::Null);
 
-        let field_val_str = match field_value {
-            serde_json::Value::String(s) => s.clone(),
-            serde_json::Value::Number(n) => n.to_string(),
-            serde_json::Value::Bool(b) => b.to_string(),
-            _ => continue, // Ignore complex objects for now
-        };
+            let field_val_str = match field_value {
+                serde_json::Value::String(s) => s.clone(),
+                serde_json::Value::Number(n) => n.to_string(),
+                serde_json::Value::Bool(b) => b.to_string(),
+                _ => continue,
+            };
 
-        if field_name.eq_ignore_ascii_case("name") {
-            name = field_val_str.clone();
-        } else if field_name.eq_ignore_ascii_case("email") {
-            email = field_val_str.clone();
+            if field_name.eq_ignore_ascii_case("name") {
+                name = field_val_str.clone();
+            } else if field_name.eq_ignore_ascii_case("email") {
+                email = field_val_str.clone();
+            }
+
+            if !field_name.eq_ignore_ascii_case("email") && !field_name.is_empty() {
+                attributes.insert(field_name.to_uppercase(), field_val_str);
+            }
         }
+    } else if let Some(obj) = raw_payload.as_object() {
+        // Parse flat object payload from Advanced webhook settings
+        for (key, value) in obj {
+            let field_val_str = match value {
+                serde_json::Value::String(s) => s.clone(),
+                serde_json::Value::Number(n) => n.to_string(),
+                serde_json::Value::Bool(b) => b.to_string(),
+                _ => continue,
+            };
 
-        // Brevo requires attribute names to be UPPERCASE
-        if !field_name.eq_ignore_ascii_case("email") && !field_name.is_empty() {
-            attributes.insert(field_name.to_uppercase(), field_val_str);
+            if key.eq_ignore_ascii_case("name") {
+                name = field_val_str.clone();
+            } else if key.eq_ignore_ascii_case("email") {
+                email = field_val_str.clone();
+            }
+
+            if !key.eq_ignore_ascii_case("email") && !key.is_empty() {
+                attributes.insert(key.to_uppercase(), field_val_str);
+            }
         }
+    } else {
+        eprintln!("Payload format unknown");
+        return (StatusCode::OK, "Skipped: format unknown").into_response();
     }
 
     if email.is_empty() {
