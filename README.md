@@ -28,10 +28,13 @@ Before running the application, make sure your Brevo account is ready:
    cd fillout_brevo_webhook
    ```
 
-2. Create a `.env` file in the root of the project with your Brevo API key:
+2. Create a `.env` file in the root of the project with your API keys:
    ```env
    BREVO_API_KEY=your_brevo_api_key_here
+   BREVO_LIST_ID=2
+   WEBHOOK_API_KEY=your_secret_passphrase_here
    ```
+   *(Note: `BREVO_LIST_ID` and `WEBHOOK_API_KEY` are optional but recommended. `WEBHOOK_API_KEY` will require Fillout to send this key in the `Authorization` or `X-API-Key` header.)*
 
 3. Run the application:
    ```bash

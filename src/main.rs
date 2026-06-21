@@ -14,6 +14,7 @@ use reqwest::Client;
 struct AppState {
     brevo_api_key: String,
     brevo_list_id: Option<u32>,
+    webhook_api_key: Option<String>,
     http_client: Client,
 }
 
@@ -42,10 +43,16 @@ async fn main() {
     let brevo_list_id = std::env::var("BREVO_LIST_ID")
         .ok()
         .and_then(|v| v.parse::<u32>().ok());
+        
+    let webhook_api_key = std::env::var("WEBHOOK_API_KEY").ok();
+    if webhook_api_key.is_none() {
+        println!("Notice: WEBHOOK_API_KEY not set. Endpoint will be public.");
+    }
     
     let state = AppState {
         brevo_api_key,
         brevo_list_id,
+        webhook_api_key,
         http_client: Client::new(),
     };
 
@@ -61,8 +68,28 @@ async fn main() {
 #[axum::debug_handler]
 async fn handle_webhook(
     State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
     Json(raw_payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    // Check API Key if configured
+    if let Some(expected_key) = &state.webhook_api_key {
+        let auth_header = headers.get("Authorization")
+            .or_else(|| headers.get("X-API-Key"))
+            .and_then(|h| h.to_str().ok());
+
+        let mut is_authorized = false;
+        if let Some(token) = auth_header {
+            let token = token.strip_prefix("Bearer ").unwrap_or(token);
+            if token == expected_key {
+                is_authorized = true;
+            }
+        }
+
+        if !is_authorized {
+            return (StatusCode::UNAUTHORIZED, "Unauthorized").into_response();
+        }
+    }
+
     println!("Received webhook payload:\n{}", serde_json::to_string_pretty(&raw_payload).unwrap_or_default());
 
     // Try to find the fields/questions array, even if it's nested under "data" or "submission"
