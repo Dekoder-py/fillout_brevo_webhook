@@ -16,17 +16,7 @@ struct AppState {
     http_client: Client,
 }
 
-#[derive(Debug, Deserialize)]
-struct FilloutPayload {
-    #[serde(alias = "questions")]
-    fields: Vec<FilloutField>,
-}
 
-#[derive(Debug, Deserialize)]
-struct FilloutField {
-    name: String,
-    value: serde_json::Value,
-}
 
 #[derive(Debug, Serialize)]
 struct BrevoRequest {
@@ -60,29 +50,44 @@ async fn main() {
 #[axum::debug_handler]
 async fn handle_webhook(
     State(state): State<AppState>,
-    Json(payload): Json<FilloutPayload>,
+    Json(raw_payload): Json<serde_json::Value>,
 ) -> impl IntoResponse {
+    println!("Received webhook payload:\n{}", serde_json::to_string_pretty(&raw_payload).unwrap_or_default());
+
+    // Try to find the fields/questions array, even if it's nested under "data"
+    let fields_array = raw_payload.get("data").and_then(|d| d.get("fields").or(d.get("questions")))
+        .or_else(|| raw_payload.get("fields").or(raw_payload.get("questions")))
+        .and_then(|v| v.as_array());
+
+    let Some(fields) = fields_array else {
+        eprintln!("Could not find 'fields' or 'questions' array in payload");
+        return (StatusCode::OK, "Payload ignored: no fields array").into_response(); // Return 200 so Fillout doesn't retry infinitely on weird events
+    };
+
     let mut name = String::new();
     let mut email = String::new();
     let mut attributes = HashMap::new();
 
-    for field in payload.fields {
-        let field_val = match field.value {
-            serde_json::Value::String(s) => s,
+    for field in fields {
+        let field_name = field.get("name").and_then(|n| n.as_str()).unwrap_or("");
+        let field_value = field.get("value").unwrap_or(&serde_json::Value::Null);
+
+        let field_val_str = match field_value {
+            serde_json::Value::String(s) => s.clone(),
             serde_json::Value::Number(n) => n.to_string(),
             serde_json::Value::Bool(b) => b.to_string(),
             _ => continue, // Ignore complex objects for now
         };
 
-        if field.name.eq_ignore_ascii_case("name") {
-            name = field_val.clone();
-        } else if field.name.eq_ignore_ascii_case("email") {
-            email = field_val.clone();
+        if field_name.eq_ignore_ascii_case("name") {
+            name = field_val_str.clone();
+        } else if field_name.eq_ignore_ascii_case("email") {
+            email = field_val_str.clone();
         }
 
         // Brevo requires attribute names to be UPPERCASE
-        if !field.name.eq_ignore_ascii_case("email") {
-            attributes.insert(field.name.to_uppercase(), field_val);
+        if !field_name.eq_ignore_ascii_case("email") && !field_name.is_empty() {
+            attributes.insert(field_name.to_uppercase(), field_val_str);
         }
     }
 
